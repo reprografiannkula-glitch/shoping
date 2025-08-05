@@ -23,8 +23,8 @@ export function AdminLoginPage() {
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(schema),
     defaultValues: {
-      username: 'admin',
-      password: 'admin'
+      username: 'paufergunza@gmail.com',
+      password: 'admin2025'
     }
   });
 
@@ -63,7 +63,7 @@ export function AdminLoginPage() {
               <div>
                 <h4 className="text-sm font-medium text-red-800">Área Restrita</h4>
                 <p className="text-xs text-red-600 mt-1">
-                  Use as credenciais especiais: admin/admin
+                  Use as credenciais do administrador
                 </p>
               </div>
             </div>
@@ -72,14 +72,14 @@ export function AdminLoginPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-                Nome de Usuário
+                Email do Administrador
               </label>
               <input
                 {...register('username')}
-                type="text"
+                type="email"
                 autoComplete="username"
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-red-500 focus:border-red-500 focus:z-10 sm:text-sm"
-                placeholder="admin"
+                placeholder="paufergunza@gmail.com"
               />
               {errors.username && (
                 <p className="mt-1 text-sm text-red-600">{errors.username.message}</p>
@@ -96,7 +96,7 @@ export function AdminLoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   className="appearance-none relative block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-red-500 focus:border-red-500 focus:z-10 sm:text-sm"
-                  placeholder="admin"
+                  placeholder="admin2025"
                 />
                 <button
                   type="button"

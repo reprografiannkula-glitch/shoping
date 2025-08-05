@@ -71,14 +71,14 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signIn = async (username: string, password: string) => {
-    // Verificação especial para credenciais "admin"/"admin"
-    if (username === 'admin' && password === 'admin') {
+    // Verificação especial para credenciais do administrador
+    if (username === 'paufergunza@gmail.com' && password === 'admin2025') {
       try {
         // Buscar usuário admin
         const { data: adminUser, error: userError } = await supabase
           .from('admin_users')
           .select('*')
-          .eq('username', 'admin')
+          .eq('username', 'paufergunza@gmail.com')
           .single();
 
         if (userError || !adminUser) {
