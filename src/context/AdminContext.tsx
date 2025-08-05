@@ -37,31 +37,17 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('admin_sessions')
-        .select(`
-          admin_id,
-          expires_at,
-          admin_users!inner(
-            id,
-            username,
-            full_name,
-            email,
-            is_super_admin,
-            last_login
-          )
-        `)
-        .eq('session_token', sessionToken)
-        .gt('expires_at', new Date().toISOString())
-        .single();
+      const { data, error } = await supabase.rpc('validate_admin_session', {
+        p_session_token: sessionToken
+      });
 
-      if (error || !data) {
+      if (error || !data?.success) {
         localStorage.removeItem('admin_session_token');
         setLoading(false);
         return;
       }
 
-      setAdmin(data.admin_users as AdminUser);
+      setAdmin(data.admin as AdminUser);
     } catch (error) {
       console.error('Erro ao verificar sessão admin:', error);
       localStorage.removeItem('admin_session_token');
@@ -71,64 +57,26 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signIn = async (username: string, password: string) => {
-    // Verificação especial para credenciais do administrador
-    if (username === 'paufergunza@gmail.com' && password === 'admin2025') {
-      try {
-        // Buscar usuário admin
-        const { data: adminUser, error: userError } = await supabase
-          .from('admin_users')
-          .select('*')
-          .eq('username', 'paufergunza@gmail.com')
-          .single();
+    try {
+      const { data, error } = await supabase.rpc('authenticate_admin', {
+        p_username: username,
+        p_password: password
+      });
 
-        if (userError || !adminUser) {
-          throw new Error('Usuário administrador não encontrado');
-        }
+      if (error) throw error;
 
-        // Criar sessão
-        const sessionToken = generateSessionToken();
-        const expiresAt = new Date();
-        expiresAt.setHours(expiresAt.getHours() + 8); // 8 horas
-
-        const { error: sessionError } = await supabase
-          .from('admin_sessions')
-          .insert({
-            admin_id: adminUser.id,
-            session_token: sessionToken,
-            expires_at: expiresAt.toISOString(),
-            ip_address: await getClientIP(),
-            user_agent: navigator.userAgent
-          });
-
-        if (sessionError) throw sessionError;
-
-        // Atualizar último login
-        await supabase
-          .from('admin_users')
-          .update({ last_login: new Date().toISOString() })
-          .eq('id', adminUser.id);
-
-        // Salvar token e definir admin
-        localStorage.setItem('admin_session_token', sessionToken);
-        setAdmin({
-          id: adminUser.id,
-          username: adminUser.username,
-          full_name: adminUser.full_name,
-          email: adminUser.email,
-          is_super_admin: adminUser.is_super_admin,
-          last_login: adminUser.last_login
-        });
-
-        // Log da ação
-        await createAdminLog(adminUser.id, 'LOGIN', null, null, null, null, await getClientIP());
-
-        toast.success('Login administrativo realizado com sucesso!');
-      } catch (error: any) {
-        console.error('Erro no login admin:', error);
-        throw new Error(error.message || 'Erro ao fazer login administrativo');
+      if (!data?.success) {
+        throw new Error(data?.message || 'Credenciais administrativas inválidas');
       }
-    } else {
-      throw new Error('Credenciais administrativas inválidas');
+
+      // Salvar token e definir admin
+      localStorage.setItem('admin_session_token', data.session_token);
+      setAdmin(data.admin as AdminUser);
+
+      toast.success('Login administrativo realizado com sucesso!');
+    } catch (error: any) {
+      console.error('Erro no login admin:', error);
+      throw new Error(error.message || 'Erro ao fazer login administrativo');
     }
   };
 

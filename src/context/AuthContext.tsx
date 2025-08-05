@@ -45,13 +45,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const { data } = await supabase
-        .from('admin_users')
-        .select('id')
-        .eq('user_id', userId)
-        .single();
-      
-      setIsAdmin(!!data);
+      // Get current user email
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) {
+        setIsAdmin(false);
+        return;
+      }
+
+      // Check if user email matches admin email
+      setIsAdmin(user.email === 'paufergunza@gmail.com');
     } catch (error) {
       setIsAdmin(false);
     }
