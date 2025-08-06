@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Check if user email matches admin email
-      setIsAdmin(user.email === 'paufergunza@gmail.com');
+      setIsAdmin(user.email === 'admin@gmail.com');
     } catch (error) {
       setIsAdmin(false);
     }

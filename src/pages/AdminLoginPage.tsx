@@ -23,7 +23,7 @@ export function AdminLoginPage() {
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(schema),
     defaultValues: {
-      username: 'paufergunza@gmail.com',
+      username: 'admin@gmail.com',
       password: 'admin2025'
     }
   });
@@ -79,7 +79,7 @@ export function AdminLoginPage() {
                 type="email"
                 autoComplete="username"
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-red-500 focus:border-red-500 focus:z-10 sm:text-sm"
-                placeholder="paufergunza@gmail.com"
+                placeholder="admin@gmail.com"
               />
               {errors.username && (
                 <p className="mt-1 text-sm text-red-600">{errors.username.message}</p>

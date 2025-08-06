@@ -130,7 +130,7 @@ export function AdminDashboard() {
             Dashboard Administrativo
           </h1>
           <p className="text-gray-600 mt-2">
-            Bem-vindo, {admin?.full_name || admin?.username}
+            Bem-vindo, {admin?.full_name || 'Administrador'}
           </p>
         </div>
 
