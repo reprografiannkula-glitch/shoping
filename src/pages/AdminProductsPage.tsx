@@ -7,7 +7,10 @@ import {
   Image as ImageIcon,
   Save,
   X,
-  AlertCircle
+  AlertCircle,
+  Star,
+  Eye,
+  Camera
 } from 'lucide-react';
 import { supabase, Product, Category } from '../lib/supabase';
 import { useAdmin } from '../context/AdminContext';
@@ -21,6 +24,18 @@ interface ProductForm {
   category_id: string;
   stock_quantity: number;
   is_active: boolean;
+  brand?: string;
+  weight?: number;
+  dimensions?: string;
+  meta_description?: string;
+}
+
+interface ProductImage {
+  id: string;
+  image_url: string;
+  image_name: string;
+  is_primary: boolean;
+  sort_order: number;
 }
 
 export function AdminProductsPage() {
@@ -29,8 +44,11 @@ export function AdminProductsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductForm | null>(null);
+  const [productImages, setProductImages] = useState<ProductImage[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [showImageManager, setShowImageManager] = useState(false);
+  const [currentProductId, setCurrentProductId] = useState<string>('');
   const { admin } = useAdmin();
 
   useEffect(() => {
@@ -39,13 +57,13 @@ export function AdminProductsPage() {
 
   const loadData = async () => {
     try {
-      // Carregar produtos
+      // Carregar produtos com imagens
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select(`
           *,
           category:categories(name),
-          product_images(id, image_url, is_primary, sort_order)
+          product_images(id, image_url, image_name, is_primary, sort_order)
         `)
         .order('created_at', { ascending: false });
 
@@ -69,6 +87,22 @@ export function AdminProductsPage() {
     }
   };
 
+  const loadProductImages = async (productId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('product_images')
+        .select('*')
+        .eq('product_id', productId)
+        .order('sort_order');
+
+      if (error) throw error;
+      setProductImages(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar imagens:', error);
+      toast.error('Erro ao carregar imagens');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -80,7 +114,11 @@ export function AdminProductsPage() {
         price: editingProduct.price,
         category_id: editingProduct.category_id || null,
         stock_quantity: editingProduct.stock_quantity,
-        is_active: editingProduct.is_active
+        is_active: editingProduct.is_active,
+        brand: editingProduct.brand || null,
+        weight: editingProduct.weight || null,
+        dimensions: editingProduct.dimensions || null,
+        meta_description: editingProduct.meta_description || null
       };
 
       if (editingProduct.id) {
@@ -166,6 +204,7 @@ export function AdminProductsPage() {
       }
 
       toast.success('Imagens enviadas com sucesso!');
+      loadProductImages(productId);
     } catch (error: any) {
       console.error('Erro ao enviar imagens:', error);
       toast.error(error.message || 'Erro ao enviar imagens');
@@ -174,8 +213,45 @@ export function AdminProductsPage() {
     }
   };
 
+  const setPrimaryImage = async (imageId: string, productId: string) => {
+    try {
+      const { error } = await supabase.rpc('set_primary_image', {
+        p_product_id: productId,
+        p_image_id: imageId
+      });
+
+      if (error) throw error;
+      
+      toast.success('Imagem principal definida!');
+      loadProductImages(productId);
+      loadData();
+    } catch (error: any) {
+      console.error('Erro ao definir imagem principal:', error);
+      toast.error(error.message || 'Erro ao definir imagem principal');
+    }
+  };
+
+  const deleteImage = async (imageId: string, productId: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta imagem?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('product_images')
+        .delete()
+        .eq('id', imageId);
+
+      if (error) throw error;
+      
+      toast.success('Imagem excluída com sucesso!');
+      loadProductImages(productId);
+    } catch (error: any) {
+      console.error('Erro ao excluir imagem:', error);
+      toast.error(error.message || 'Erro ao excluir imagem');
+    }
+  };
+
   const handleDelete = async (productId: string) => {
-    if (!confirm('Tem certeza que deseja excluir este produto?')) return;
+    if (!confirm('Tem certeza que deseja excluir este produto? Esta ação não pode ser desfeita.')) return;
 
     try {
       const { error } = await supabase
@@ -199,6 +275,12 @@ export function AdminProductsPage() {
       currency: 'AOA',
       minimumFractionDigits: 2
     }).format(price);
+  };
+
+  const openImageManager = (productId: string) => {
+    setCurrentProductId(productId);
+    setShowImageManager(true);
+    loadProductImages(productId);
   };
 
   if (loading) {
@@ -226,7 +308,11 @@ export function AdminProductsPage() {
                 price: 0,
                 category_id: '',
                 stock_quantity: 0,
-                is_active: true
+                is_active: true,
+                brand: '',
+                weight: 0,
+                dimensions: '',
+                meta_description: ''
               });
               setShowForm(true);
             }}
@@ -269,10 +355,10 @@ export function AdminProductsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-12 w-12">
-                          {product.image_url ? (
+                          {product.featured_image_url || product.image_url ? (
                             <img
                               className="h-12 w-12 rounded-lg object-cover"
-                              src={product.image_url}
+                              src={product.featured_image_url || product.image_url}
                               alt={product.name}
                             />
                           ) : (
@@ -319,6 +405,13 @@ export function AdminProductsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                       <button
+                        onClick={() => openImageManager(product.id)}
+                        className="text-purple-600 hover:text-purple-900 transition-colors"
+                        title="Gerenciar Imagens"
+                      >
+                        <Camera className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => {
                           setEditingProduct({
                             id: product.id,
@@ -327,17 +420,23 @@ export function AdminProductsPage() {
                             price: product.price,
                             category_id: product.category_id || '',
                             stock_quantity: product.stock_quantity,
-                            is_active: product.is_active
+                            is_active: product.is_active,
+                            brand: product.brand || '',
+                            weight: product.weight || 0,
+                            dimensions: product.dimensions || '',
+                            meta_description: product.meta_description || ''
                           });
                           setShowForm(true);
                         }}
                         className="text-blue-600 hover:text-blue-900 transition-colors"
+                        title="Editar Produto"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(product.id)}
                         className="text-red-600 hover:text-red-900 transition-colors"
+                        title="Excluir Produto"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -352,7 +451,7 @@ export function AdminProductsPage() {
         {/* Modal de Formulário */}
         {showForm && editingProduct && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-semibold text-gray-900">
@@ -371,20 +470,37 @@ export function AdminProductsPage() {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nome do Produto *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={editingProduct.name}
-                      onChange={(e) => setEditingProduct({
-                        ...editingProduct,
-                        name: e.target.value
-                      })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Nome do Produto *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editingProduct.name}
+                        onChange={(e) => setEditingProduct({
+                          ...editingProduct,
+                          name: e.target.value
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Marca
+                      </label>
+                      <input
+                        type="text"
+                        value={editingProduct.brand}
+                        onChange={(e) => setEditingProduct({
+                          ...editingProduct,
+                          brand: e.target.value
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      />
+                    </div>
                   </div>
 
                   <div>
@@ -402,7 +518,23 @@ export function AdminProductsPage() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Meta Descrição (SEO)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={editingProduct.meta_description}
+                      onChange={(e) => setEditingProduct({
+                        ...editingProduct,
+                        meta_description: e.target.value
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="Descrição para motores de busca"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Preço (AOA) *
@@ -423,7 +555,7 @@ export function AdminProductsPage() {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Quantidade em Estoque *
+                        Estoque *
                       </label>
                       <input
                         type="number"
@@ -437,27 +569,62 @@ export function AdminProductsPage() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                       />
                     </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Peso (kg)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={editingProduct.weight}
+                        onChange={(e) => setEditingProduct({
+                          ...editingProduct,
+                          weight: parseFloat(e.target.value) || 0
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Categoria
-                    </label>
-                    <select
-                      value={editingProduct.category_id}
-                      onChange={(e) => setEditingProduct({
-                        ...editingProduct,
-                        category_id: e.target.value
-                      })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    >
-                      <option value="">Selecione uma categoria</option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Categoria
+                      </label>
+                      <select
+                        value={editingProduct.category_id}
+                        onChange={(e) => setEditingProduct({
+                          ...editingProduct,
+                          category_id: e.target.value
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      >
+                        <option value="">Selecione uma categoria</option>
+                        {categories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Dimensões
+                      </label>
+                      <input
+                        type="text"
+                        value={editingProduct.dimensions}
+                        onChange={(e) => setEditingProduct({
+                          ...editingProduct,
+                          dimensions: e.target.value
+                        })}
+                        placeholder="Ex: 20x15x10 cm"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      />
+                    </div>
                   </div>
 
                   {!editingProduct.id && (
@@ -533,6 +700,106 @@ export function AdminProductsPage() {
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Gerenciamento de Imagens */}
+        {showImageManager && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Gerenciar Imagens do Produto
+                  </h2>
+                  <button
+                    onClick={() => {
+                      setShowImageManager(false);
+                      setCurrentProductId('');
+                      setProductImages([]);
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+
+                {/* Upload de Novas Imagens */}
+                <div className="mb-6">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          uploadProductImages(currentProductId, e.target.files);
+                        }
+                      }}
+                      className="hidden"
+                      id="new-images-upload"
+                    />
+                    <label
+                      htmlFor="new-images-upload"
+                      className="cursor-pointer inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                    >
+                      Adicionar Imagens
+                    </label>
+                  </div>
+                </div>
+
+                {/* Grid de Imagens */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {productImages.map((image) => (
+                    <div key={image.id} className="relative group">
+                      <img
+                        src={image.image_url}
+                        alt={image.image_name}
+                        className="w-full h-32 object-cover rounded-lg border"
+                      />
+                      
+                      {/* Overlay com ações */}
+                      <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center space-x-2">
+                        {!image.is_primary && (
+                          <button
+                            onClick={() => setPrimaryImage(image.id, currentProductId)}
+                            className="p-2 bg-yellow-600 text-white rounded-full hover:bg-yellow-700"
+                            title="Definir como principal"
+                          >
+                            <Star className="h-4 w-4" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteImage(image.id, currentProductId)}
+                          className="p-2 bg-red-600 text-white rounded-full hover:bg-red-700"
+                          title="Excluir imagem"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {/* Badge de imagem principal */}
+                      {image.is_primary && (
+                        <div className="absolute top-2 left-2">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            <Star className="h-3 w-3 mr-1" />
+                            Principal
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {productImages.length === 0 && (
+                  <div className="text-center py-8">
+                    <ImageIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                    <p className="text-gray-500">Nenhuma imagem adicionada ainda</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

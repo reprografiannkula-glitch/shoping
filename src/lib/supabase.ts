@@ -29,6 +29,11 @@ export interface Product {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  featured_image_url?: string;
+  brand?: string;
+  weight?: number;
+  dimensions?: string;
+  meta_description?: string;
   category?: Category;
 }
 
