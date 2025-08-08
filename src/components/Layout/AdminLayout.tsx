@@ -30,9 +30,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Produtos', href: '/admin/products', icon: Package },
     { name: 'Pedidos', href: '/admin/orders', icon: ShoppingBag },
-    { name: 'Usuários', href: '/admin/users', icon: Users },
-    { name: 'Relatórios', href: '/admin/reports', icon: BarChart3 },
-    { name: 'Configurações', href: '/admin/settings', icon: Settings },
   ];
 
   return (
