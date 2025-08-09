@@ -67,17 +67,23 @@ export function AdminProductsPage() {
 
   const loadData = async () => {
     try {
-      // Carregar produtos com categorias e imagens
+      console.log('Carregando produtos...');
+      
+      // Carregar produtos com categorias
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select(`
           *,
-          category:categories(id, name),
-          product_images(id, image_url, image_name, is_primary, sort_order)
+          category:categories(id, name)
         `)
         .order('created_at', { ascending: false });
 
-      if (productsError) throw productsError;
+      if (productsError) {
+        console.error('Erro ao carregar produtos:', productsError);
+        throw productsError;
+      }
+
+      console.log('Produtos carregados:', productsData?.length || 0);
 
       // Carregar categorias
       const { data: categoriesData, error: categoriesError } = await supabase
@@ -85,7 +91,12 @@ export function AdminProductsPage() {
         .select('*')
         .order('name');
 
-      if (categoriesError) throw categoriesError;
+      if (categoriesError) {
+        console.error('Erro ao carregar categorias:', categoriesError);
+        throw categoriesError;
+      }
+
+      console.log('Categorias carregadas:', categoriesData?.length || 0);
 
       setProducts(productsData || []);
       setCategories(categoriesData || []);
@@ -122,22 +133,6 @@ export function AdminProductsPage() {
     }
 
     setFilteredProducts(filtered);
-  };
-
-  const loadProductImages = async (productId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('product_images')
-        .select('*')
-        .eq('product_id', productId)
-        .order('sort_order');
-
-      if (error) throw error;
-      setProductImages(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar imagens:', error);
-      toast.error('Erro ao carregar imagens');
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -241,51 +236,12 @@ export function AdminProductsPage() {
       }
 
       toast.success('Imagens enviadas com sucesso!');
-      loadProductImages(productId);
       loadData();
     } catch (error: any) {
       console.error('Erro ao enviar imagens:', error);
       toast.error(error.message || 'Erro ao enviar imagens');
     } finally {
       setUploadingImages(false);
-    }
-  };
-
-  const setPrimaryImage = async (imageId: string, productId: string) => {
-    try {
-      const { error } = await supabase.rpc('set_primary_image', {
-        p_product_id: productId,
-        p_image_id: imageId
-      });
-
-      if (error) throw error;
-      
-      toast.success('Imagem principal definida!');
-      loadProductImages(productId);
-      loadData();
-    } catch (error: any) {
-      console.error('Erro ao definir imagem principal:', error);
-      toast.error(error.message || 'Erro ao definir imagem principal');
-    }
-  };
-
-  const deleteImage = async (imageId: string, productId: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta imagem?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('product_images')
-        .delete()
-        .eq('id', imageId);
-
-      if (error) throw error;
-      
-      toast.success('Imagem excluída com sucesso!');
-      loadProductImages(productId);
-      loadData();
-    } catch (error: any) {
-      console.error('Erro ao excluir imagem:', error);
-      toast.error(error.message || 'Erro ao excluir imagem');
     }
   };
 
@@ -333,12 +289,6 @@ export function AdminProductsPage() {
     }).format(price);
   };
 
-  const openImageManager = (productId: string) => {
-    setCurrentProductId(productId);
-    setShowImageManager(true);
-    loadProductImages(productId);
-  };
-
   const clearFilters = () => {
     setSearchTerm('');
     setFilterCategory('');
@@ -348,7 +298,10 @@ export function AdminProductsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-red-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-red-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando produtos...</p>
+        </div>
       </div>
     );
   }
@@ -436,146 +389,162 @@ export function AdminProductsPage() {
 
         {/* Lista de Produtos */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Produto
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Categoria
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Preço
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estoque
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ações
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredProducts.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-12 w-12">
-                          {product.featured_image_url || product.image_url ? (
-                            <img
-                              className="h-12 w-12 rounded-lg object-cover"
-                              src={product.featured_image_url || product.image_url}
-                              alt={product.name}
-                            />
-                          ) : (
-                            <div className="h-12 w-12 rounded-lg bg-gray-200 flex items-center justify-center">
-                              <ImageIcon className="h-6 w-6 text-gray-400" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900 line-clamp-1">
-                            {product.name}
-                          </div>
-                          <div className="text-sm text-gray-500 line-clamp-1">
-                            {product.brand && `${product.brand} • `}
-                            {product.description}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {product.category?.name || 'Sem categoria'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {formatPrice(product.price)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        product.stock_quantity > 10 
-                          ? 'bg-green-100 text-green-800'
-                          : product.stock_quantity > 0
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {product.stock_quantity} unidades
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => toggleProductStatus(product.id, product.is_active)}
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
-                          product.is_active 
-                            ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                        }`}
-                      >
-                        {product.is_active ? 'Ativo' : 'Inativo'}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => openImageManager(product.id)}
-                          className="text-purple-600 hover:text-purple-900 transition-colors p-1"
-                          title="Gerenciar Imagens"
-                        >
-                          <Camera className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingProduct({
-                              id: product.id,
-                              name: product.name,
-                              description: product.description || '',
-                              price: product.price,
-                              category_id: product.category_id || '',
-                              stock_quantity: product.stock_quantity,
-                              is_active: product.is_active,
-                              brand: product.brand || '',
-                              weight: product.weight || 0,
-                              dimensions: product.dimensions || '',
-                              meta_description: product.meta_description || ''
-                            });
-                            setShowForm(true);
-                          }}
-                          className="text-blue-600 hover:text-blue-900 transition-colors p-1"
-                          title="Editar Produto"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(product.id)}
-                          className="text-red-600 hover:text-red-900 transition-colors p-1"
-                          title="Excluir Produto"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
+          {filteredProducts.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Produto
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Categoria
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Preço
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Estoque
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Ações
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {filteredProducts.length === 0 && (
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredProducts.map((product) => (
+                    <tr key={product.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-12 w-12">
+                            {product.image_url ? (
+                              <img
+                                className="h-12 w-12 rounded-lg object-cover"
+                                src={product.image_url}
+                                alt={product.name}
+                              />
+                            ) : (
+                              <div className="h-12 w-12 rounded-lg bg-gray-200 flex items-center justify-center">
+                                <ImageIcon className="h-6 w-6 text-gray-400" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900 line-clamp-1">
+                              {product.name}
+                            </div>
+                            <div className="text-sm text-gray-500 line-clamp-1">
+                              {product.brand && `${product.brand} • `}
+                              {product.description}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {product.category?.name || 'Sem categoria'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {formatPrice(product.price)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          product.stock_quantity > 10 
+                            ? 'bg-green-100 text-green-800'
+                            : product.stock_quantity > 0
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {product.stock_quantity} unidades
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => toggleProductStatus(product.id, product.is_active)}
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                            product.is_active 
+                              ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                              : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                          }`}
+                        >
+                          {product.is_active ? 'Ativo' : 'Inativo'}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              setEditingProduct({
+                                id: product.id,
+                                name: product.name,
+                                description: product.description || '',
+                                price: product.price,
+                                category_id: product.category_id || '',
+                                stock_quantity: product.stock_quantity,
+                                is_active: product.is_active,
+                                brand: product.brand || '',
+                                weight: product.weight || 0,
+                                dimensions: product.dimensions || '',
+                                meta_description: product.meta_description || ''
+                              });
+                              setShowForm(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-900 transition-colors p-1"
+                            title="Editar Produto"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(product.id)}
+                            className="text-red-600 hover:text-red-900 transition-colors p-1"
+                            title="Excluir Produto"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
             <div className="text-center py-12">
               <ImageIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Nenhum produto encontrado
+                {products.length === 0 ? 'Nenhum produto cadastrado' : 'Nenhum produto encontrado'}
               </h3>
-              <p className="text-gray-500">
-                {searchTerm || filterCategory || filterStatus !== 'all' 
-                  ? 'Tente ajustar os filtros de busca'
-                  : 'Comece adicionando seu primeiro produto'
+              <p className="text-gray-500 mb-4">
+                {products.length === 0 
+                  ? 'Comece adicionando seu primeiro produto'
+                  : 'Tente ajustar os filtros de busca'
                 }
               </p>
+              {products.length === 0 && (
+                <button
+                  onClick={() => {
+                    setEditingProduct({
+                      name: '',
+                      description: '',
+                      price: 0,
+                      category_id: '',
+                      stock_quantity: 0,
+                      is_active: true,
+                      brand: '',
+                      weight: 0,
+                      dimensions: '',
+                      meta_description: ''
+                    });
+                    setShowForm(true);
+                  }}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2 mx-auto"
+                >
+                  <Plus className="h-5 w-5" />
+                  <span>Adicionar Primeiro Produto</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -650,22 +619,6 @@ export function AdminProductsPage() {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Meta Descrição (SEO)
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={editingProduct.meta_description}
-                      onChange={(e) => setEditingProduct({
-                        ...editingProduct,
-                        meta_description: e.target.value
-                      })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                      placeholder="Descrição para motores de busca"
-                    />
-                  </div>
-
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -704,25 +657,6 @@ export function AdminProductsPage() {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Peso (kg)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={editingProduct.weight}
-                        onChange={(e) => setEditingProduct({
-                          ...editingProduct,
-                          weight: parseFloat(e.target.value) || 0
-                        })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         Categoria
                       </label>
                       <select
@@ -740,22 +674,6 @@ export function AdminProductsPage() {
                           </option>
                         ))}
                       </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Dimensões
-                      </label>
-                      <input
-                        type="text"
-                        value={editingProduct.dimensions}
-                        onChange={(e) => setEditingProduct({
-                          ...editingProduct,
-                          dimensions: e.target.value
-                        })}
-                        placeholder="Ex: 20x15x10 cm"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                      />
                     </div>
                   </div>
 
@@ -832,106 +750,6 @@ export function AdminProductsPage() {
                     </button>
                   </div>
                 </form>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de Gerenciamento de Imagens */}
-        {showImageManager && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    Gerenciar Imagens do Produto
-                  </h2>
-                  <button
-                    onClick={() => {
-                      setShowImageManager(false);
-                      setCurrentProductId('');
-                      setProductImages([]);
-                    }}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="h-6 w-6" />
-                  </button>
-                </div>
-
-                {/* Upload de Novas Imagens */}
-                <div className="mb-6">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                    <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files.length > 0) {
-                          uploadProductImages(currentProductId, e.target.files);
-                        }
-                      }}
-                      className="hidden"
-                      id="new-images-upload"
-                    />
-                    <label
-                      htmlFor="new-images-upload"
-                      className="cursor-pointer inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                    >
-                      Adicionar Imagens
-                    </label>
-                  </div>
-                </div>
-
-                {/* Grid de Imagens */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {productImages.map((image) => (
-                    <div key={image.id} className="relative group">
-                      <img
-                        src={image.image_url}
-                        alt={image.image_name}
-                        className="w-full h-32 object-cover rounded-lg border"
-                      />
-                      
-                      {/* Overlay com ações */}
-                      <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center space-x-2">
-                        {!image.is_primary && (
-                          <button
-                            onClick={() => setPrimaryImage(image.id, currentProductId)}
-                            className="p-2 bg-yellow-600 text-white rounded-full hover:bg-yellow-700"
-                            title="Definir como principal"
-                          >
-                            <Star className="h-4 w-4" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => deleteImage(image.id, currentProductId)}
-                          className="p-2 bg-red-600 text-white rounded-full hover:bg-red-700"
-                          title="Excluir imagem"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-
-                      {/* Badge de imagem principal */}
-                      {image.is_primary && (
-                        <div className="absolute top-2 left-2">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                            <Star className="h-3 w-3 mr-1" />
-                            Principal
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {productImages.length === 0 && (
-                  <div className="text-center py-8">
-                    <ImageIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                    <p className="text-gray-500">Nenhuma imagem adicionada ainda</p>
-                  </div>
-                )}
               </div>
             </div>
           </div>

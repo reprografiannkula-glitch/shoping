@@ -58,11 +58,15 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (username: string, password: string) => {
     try {
+      console.log('Tentando fazer login admin com:', username);
+      
       const { data, error } = await supabase.rpc('authenticate_admin', {
         p_username: username,
         p_password: password
       });
 
+      console.log('Resposta do login admin:', data);
+      
       if (error) throw error;
 
       if (!data?.success) {
